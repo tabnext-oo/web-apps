@@ -165,6 +165,18 @@ if (window.Common === undefined) {
 
             'requestRoles': function(data) {
                 $me.trigger('requestroles', data);
+            },
+            
+            'setEditorMode': function(data) {
+                $me.trigger('seteditormode', data);
+            },
+
+            'getPrintPreviewCanvas': function(data) {
+                $me.trigger('getprintpreviewcanvas', data);
+            },
+
+            'print': function(data) {
+                $me.trigger('print', data);
             }
         };
 
@@ -445,6 +457,13 @@ if (window.Common === undefined) {
 
             submitForm: function() {
                 _postMessage({event: 'onSubmit'});
+            },
+
+            sendPrintPreviewCanvas: function(data) {
+                _postMessage({
+                    event: 'onPrintPreviewCanvas',
+                    data: data
+                });
             },
 
             on: function(event, handler){
