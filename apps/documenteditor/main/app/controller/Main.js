@@ -1295,6 +1295,50 @@ define([
                 }
             },
 
+            onSetEditorMode: function(data) {
+                if (data && data.mode) {
+                    var mode = data.mode;
+                    var force = data.force!==undefined ? data.force : true;
+                    var disableModeButton = data.disableModeButton!==undefined ? data.disableModeButton : false;
+                    this.onDocModeApply(mode, force, disableModeButton)
+                }
+            },
+
+            onGetPrintPreviewCanvas: function(data) {
+                if (!this.appOptions.canPrint || !this._isDocReady) {
+                    Common.Gateway.sendPrintPreviewCanvas({ error: 'access_denied', done: true });
+                    return;
+                }
+
+                var printController = this.getApplication().getController('Print');
+                if (printController) {
+                    printController.getPreviewCanvas(data);
+                } else {
+                    Common.Gateway.sendPrintPreviewCanvas({ error: 'not_ready', done: true });
+                }
+            },
+
+            onPrint: function(data) {
+                if (!this.appOptions.canPrint || !this._isDocReady) {
+                    Common.Gateway.reportError(Asc.c_oAscError.ID.AccessDeny, this.errorAccessDeny);
+                    return;
+                }
+
+                data = data || {};
+
+                if (data.showPreview) {
+                    this.getApplication().getController('LeftMenu').leftMenu.showMenu('file:printpreview');
+                    return;
+                }
+
+                var printController = this.getApplication().getController('Print');
+                if (printController) {
+                    printController.triggerPrint(data);
+                } else {
+                    this.api.asc_Print(new Asc.asc_CDownloadOptions(null, Common.Utils.isChrome || Common.Utils.isOpera || Common.Utils.isGecko && Common.Utils.firefoxVersion>86));
+                }
+            },
+
             onDocumentContentReady: function() {
                 if (this._isDocReady)
                     return;
@@ -1558,6 +1602,10 @@ define([
                         me.onExternalMessage({msg: me.txtSaveCopyAsComplete});
                     }
                 });
+
+                Common.Gateway.on('seteditormode',          _.bind(me.onSetEditorMode, me));
+                Common.Gateway.on('getprintpreviewcanvas',  _.bind(me.onGetPrintPreviewCanvas, me));
+                Common.Gateway.on('print',                  _.bind(me.onPrint, me));
 
                 Common.Gateway.sendInfo({mode:me.appOptions.isEdit?'edit':'view'});
 

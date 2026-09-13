@@ -59,6 +59,8 @@ define([
             };
 
             this._isPreviewVisible = false;
+            this._previewCanvasPending = null;
+            this._hiddenPreviewContainer = null;
 
             this.addListeners({
                 'PrintWithPreview': {
@@ -284,6 +286,27 @@ define([
         },
 
         onCountPages: function(count) {
+            var pending = this._previewCanvasPending;
+            if (pending && pending.waitingPageCount) {
+                this._navigationPreview.pageCount = count;
+                if (pending.singlePage) {
+                    if (pending.pages[0] >= count) {
+                        this._previewCanvasPending = null;
+                        this._sendPreviewCanvasError('invalid_page', { page: pending.pages[0], pageCount: count });
+                        this.api.asc_closePrintPreview && this.api.asc_closePrintPreview();
+                        return;
+                    }
+                    pending.pageCount = count;
+                    pending.waitingPageCount = false;
+                    pending.currentPage = pending.pages[0];
+                    this._drawNextPreviewCanvasPage();
+                    return;
+                }
+                pending.waitingPageCount = false;
+                this._startPreviewCanvasPages(count);
+                return;
+            }
+
             this._navigationPreview.pageCount = count;
             if (this._navigationPreview.currentPreviewPage > count - 1) {
                 this._navigationPreview.currentPreviewPage = Math.max(0, count - 1);
@@ -295,6 +318,11 @@ define([
         },
 
         onCurrentPage: function(number) {
+            if (this._previewCanvasPending) {
+                this._onPreviewCanvasCurrentPage(number);
+                return;
+            }
+
             this._navigationPreview.currentPreviewPage = number;
             if (this.printSettings && this.printSettings.isVisible()) {
                 this.api.asc_drawPrintPreview(this._navigationPreview.currentPreviewPage);
@@ -477,6 +505,168 @@ define([
 
         getPrintParams: function() {
             return this.adjPrintParams;
+        },
+
+        _getPreviewCanvasFormat: function(data) {
+            var format = (data && data.format) || 'png';
+
+            if (format === 'png') {
+                return 'image/png';
+            }
+            if (format === 'jpeg' || format === 'jpg') {
+                return 'image/jpeg';
+            }
+
+            return format;
+        },
+
+        _sendPreviewCanvasError: function(error, extra) {
+            Common.Gateway.sendPrintPreviewCanvas(_.extend({ error: error, done: true }, extra || {}));
+        },
+
+        getPreviewCanvas: function(data) {
+            data = data || {};
+            var format = this._getPreviewCanvasFormat(data);
+            var singlePage = data.page !== undefined;
+            var page = singlePage ? parseInt(data.page, 10) : undefined;
+
+            if (!this.api) {
+                this._sendPreviewCanvasError('not_ready');
+                return;
+            }
+
+            if (this._previewCanvasPending) {
+                this._sendPreviewCanvasError('busy');
+                return;
+            }
+
+            if (singlePage && (isNaN(page) || page < 0)) {
+                this._sendPreviewCanvasError('invalid_page', { page: page });
+                return;
+            }
+
+            if (!this._hiddenPreviewContainer) {
+                this._hiddenPreviewContainer = $('<div id="tabnext-print-preview" style="position:absolute;left:-9999px;top:-9999px;overflow:hidden;"></div>');
+                $('body').append(this._hiddenPreviewContainer);
+            }
+
+            this._previewCanvasPending = {
+                format: format,
+                singlePage: singlePage,
+                pages: singlePage ? [page] : null,
+                currentIndex: 0,
+                pageCount: null,
+                waitingPageCount: false
+            };
+
+            var opts = new Asc.asc_CDownloadOptions(null, Common.Utils.isChrome || Common.Utils.isOpera || Common.Utils.isGecko && Common.Utils.firefoxVersion>86);
+            opts.asc_setAdvancedOptions(this.adjPrintParams);
+            var pageCount = this.api.asc_initPrintPreview('tabnext-print-preview', opts);
+
+            if (singlePage) {
+                if (pageCount && page >= pageCount) {
+                    this._previewCanvasPending = null;
+                    this._sendPreviewCanvasError('invalid_page', { page: page, pageCount: pageCount });
+                    this.api.asc_closePrintPreview && this.api.asc_closePrintPreview();
+                    return;
+                }
+
+                this._previewCanvasPending.pageCount = pageCount || null;
+                if (pageCount) {
+                    this._drawNextPreviewCanvasPage();
+                } else {
+                    this._previewCanvasPending.waitingPageCount = true;
+                    this._previewCanvasPending.currentPage = page;
+                    this.api.asc_drawPrintPreview(page);
+                }
+                return;
+            }
+
+            if (pageCount) {
+                this._startPreviewCanvasPages(pageCount);
+            } else if (this._navigationPreview.pageCount) {
+                this._startPreviewCanvasPages(this._navigationPreview.pageCount);
+            } else {
+                this._previewCanvasPending.waitingPageCount = true;
+                this.api.asc_drawPrintPreview(0);
+            }
+        },
+
+        _startPreviewCanvasPages: function(pageCount) {
+            var pending = this._previewCanvasPending;
+            if (!pending) {
+                return;
+            }
+
+            pending.pageCount = pageCount;
+            pending.pages = [];
+            for (var i = 0; i < pageCount; i++) {
+                pending.pages.push(i);
+            }
+            pending.currentIndex = 0;
+            this._drawNextPreviewCanvasPage();
+        },
+
+        _drawNextPreviewCanvasPage: function() {
+            var pending = this._previewCanvasPending;
+            if (!pending || !pending.pages || pending.currentIndex >= pending.pages.length) {
+                return;
+            }
+
+            pending.currentPage = pending.pages[pending.currentIndex];
+            this.api.asc_drawPrintPreview(pending.currentPage);
+        },
+
+        _onPreviewCanvasCurrentPage: function(number) {
+            var pending = this._previewCanvasPending;
+            if (!pending || pending.waitingPageCount || number !== pending.currentPage) {
+                return;
+            }
+
+            var container = document.getElementById('tabnext-print-preview');
+            var canvas = container ? container.querySelector('canvas') : null;
+
+            if (!canvas) {
+                this._previewCanvasPending = null;
+                this._sendPreviewCanvasError('canvas_not_found', { page: pending.currentPage, pageCount: pending.pageCount });
+                this.api.asc_closePrintPreview && this.api.asc_closePrintPreview();
+                return;
+            }
+
+            var isLast = pending.currentIndex >= pending.pages.length - 1;
+            Common.Gateway.sendPrintPreviewCanvas({
+                page: pending.currentPage,
+                pageCount: pending.pageCount,
+                dataUrl: canvas.toDataURL(pending.format),
+                width: canvas.width,
+                height: canvas.height,
+                done: isLast
+            });
+
+            if (isLast) {
+                this._previewCanvasPending = null;
+                this.api.asc_closePrintPreview && this.api.asc_closePrintPreview();
+            } else {
+                pending.currentIndex++;
+                this._drawNextPreviewCanvasPage();
+            }
+        },
+
+        triggerPrint: function(data) {
+            data = data || {};
+
+            if (!this.api) {
+                return;
+            }
+
+            var opts = new Asc.asc_CDownloadOptions(null, Common.Utils.isChrome || Common.Utils.isOpera || Common.Utils.isGecko && Common.Utils.firefoxVersion>86);
+
+            if (data.useSystemDialog) {
+                this.adjPrintParams.asc_setNativeOptions({ usesystemdialog: true });
+                opts.asc_setAdvancedOptions(this.adjPrintParams);
+            }
+
+            this.api.asc_Print(opts);
         },
 
         onHidePrintMenu: function () {

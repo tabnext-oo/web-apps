@@ -359,6 +359,7 @@
                 'onUserActionRequired': <user action callback> // send if the user needs to enter a password or select encoding/delimiters when opening a file
                 'onRequestFillingStatus': <request filling status for current role> // used in pdf-form fill forms mode
                 'onStartFilling': <send when can start filling (form is completed and users are disconnected)> // send after startFilling method, used in pdf-form editing
+                'onPrintPreviewCanvas': <print preview canvas callback> // fired once per page; data.page, data.pageCount, data.dataUrl, data.width, data.height, data.done (true on last page)
             }
         }
 
@@ -917,6 +918,27 @@
             });
         };
 
+        var _setEditorMode = function(data) {
+            _sendCommand({
+                command: 'setEditorMode',
+                data: data
+            })
+        }
+
+        var _getPrintPreviewCanvas = function(data) {
+            _sendCommand({
+                command: 'getPrintPreviewCanvas',
+                data: data
+            });
+        };
+
+        var _print = function(data) {
+            _sendCommand({
+                command: 'print',
+                data: data
+            });
+        };
+
         return {
             showMessage         : _showMessage,
             processRightsChange : _processRightsChange,
@@ -948,7 +970,10 @@
             setReferenceSource: _setReferenceSource,
             openDocument: _openDocumentFromBinary,
             startFilling: _startFilling,
-            requestRoles: _requestRoles
+            requestRoles: _requestRoles,
+            setEditorMode: _setEditorMode,
+            getPrintPreviewCanvas: _getPrintPreviewCanvas,
+            print: _print
         }
     };
 
