@@ -670,7 +670,7 @@ DE.ApplicationController = new(function(){
             }
         });
 
-        if (appOptions.isOForm && permissions.download!==false) {
+        if (false && appOptions.isOForm && permissions.download!==false) {
             common.controller.modals.showWarning({
                 title: me.notcriticalErrorTitle,
                 message: me.textConvertFormDownload,
