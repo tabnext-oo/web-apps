@@ -1295,6 +1295,46 @@ define([
                 }
             },
 
+            onSetEditorMode: function(data) {
+                if (data && data.mode) {
+                    var mode = data.mode;
+                    var force = data.force!==undefined ? data.force : true;
+                    var disableModeButton = data.disableModeButton!==undefined ? data.disableModeButton : false;
+                    this.onDocModeApply(mode, force, disableModeButton)
+                }
+            },
+
+            onGetPrintFileUrl: function(data) {
+                if (!this._isDocReady) {
+                    Common.Gateway.sendPrintFileUrl({ error: 'access_denied' });
+                    return;
+                }
+
+                if (this._state.pendingPrintFileUrl) {
+                    Common.Gateway.sendPrintFileUrl({ error: 'busy' });
+                    return;
+                }
+
+                this._state.pendingPrintFileUrl = true;
+                this.api.asc_Print(new Asc.asc_CDownloadOptions(null, true));
+            },
+
+            onExternalPrint: function() {
+                if (!this._isDocReady) {
+                    Common.Gateway.reportError(Asc.c_oAscError.ID.AccessDeny, this.errorAccessDeny);
+                    return;
+                }
+
+                this.api.asc_Print(new Asc.asc_CDownloadOptions(null, true));
+            },
+
+            onExternalForceSave: function() {
+                if (!this._isDocReady || !this.appOptions.isEdit)
+                    return;
+
+                this.api.asc_Save();
+            },
+
             onDocumentContentReady: function() {
                 if (this._isDocReady)
                     return;
@@ -1558,6 +1598,11 @@ define([
                         me.onExternalMessage({msg: me.txtSaveCopyAsComplete});
                     }
                 });
+
+                Common.Gateway.on('seteditormode',          _.bind(me.onSetEditorMode, me));
+                Common.Gateway.on('getprintfileurl',       _.bind(me.onGetPrintFileUrl, me));
+                Common.Gateway.on('print',                  _.bind(me.onExternalPrint, me));
+                Common.Gateway.on('forcesave',              _.bind(me.onExternalForceSave, me));
 
                 Common.Gateway.sendInfo({mode:me.appOptions.isEdit?'edit':'view'});
 
@@ -3132,6 +3177,12 @@ define([
             },
 
             onPrintUrl: function(url) {
+                if (this._state.pendingPrintFileUrl) {
+                    this._state.pendingPrintFileUrl = false;
+                    Common.Gateway.sendPrintFileUrl({ url: url });
+                    return;
+                }
+
                 if (this.iframePrint) {
                     this.iframePrint.parentNode.removeChild(this.iframePrint);
                     this.iframePrint = null;

@@ -359,6 +359,7 @@
                 'onUserActionRequired': <user action callback> // send if the user needs to enter a password or select encoding/delimiters when opening a file
                 'onRequestFillingStatus': <request filling status for current role> // used in pdf-form fill forms mode
                 'onStartFilling': <send when can start filling (form is completed and users are disconnected)> // send after startFilling method, used in pdf-form editing
+                'onPrintFileUrl': <print file url callback> // fired with data.url (printfile/ PDF URL) in response to getPrintFileUrl
             }
         }
 
@@ -917,6 +918,32 @@
             });
         };
 
+        var _setEditorMode = function(data) {
+            _sendCommand({
+                command: 'setEditorMode',
+                data: data
+            })
+        }
+
+        var _getPrintFileUrl = function(data) {
+            _sendCommand({
+                command: 'getPrintFileUrl',
+                data: data
+            });
+        };
+
+        var _print = function() {
+            _sendCommand({
+                command: 'print'
+            });
+        };
+
+        var _forceSave = function() {
+            _sendCommand({
+                command: 'forcesave'
+            });
+        };
+
         (function(k){function n(){if(window.crypto&&window.crypto.getRandomValues){var a=new Uint16Array(8);window.crypto.getRandomValues(a);var b=0;function d(){return(65536+a[b++]).toString(16).substring(1)}return d()+d()+"-"+d()+"-"+d()+"-"+d()+"-"+d()+d()+d()}function c(){return Math.floor(65536*(1+Math.random())).toString(16).substring(1)}return c()+c()+"-"+c()+"-"+c()+"-"+c()+"-"+c()+c()+c()}function e(a){this.frame=a.frame;this.guid="asc.{"+n()+"}";this.isConnected=!1;this.callbacks=[];this.events=
 {};this.tasks=[];this.editorInfo={};this.onMessageBound=this.onMessage.bind(this);a.autoconnect&&this.connect();void 0===window.Asc&&(window.Asc={});void 0===window.Asc.scope&&(window.Asc.scope={})}function g(a){this.connector=a;this.id=n();this.id=this.id.replace(/-/g,"");this._events={}}e.prototype.onMessage=function(a){if("string"==typeof a.data){var b={};try{b=JSON.parse(a.data)}catch(f){b={}}if("onExternalPluginMessageCallback"===b.type&&(b=b.data,this.guid===b.guid))switch(b.type){case "onMethodReturn":0<
 this.callbacks.length&&(a=this.callbacks.shift())&&a(b.methodReturnData);0<this.tasks.length&&this.sendMessage(this.tasks.shift());break;case "onCommandCallback":0<this.callbacks.length&&(a=this.callbacks.shift())&&a(b.commandReturnData);0<this.tasks.length&&this.sendMessage(this.tasks.shift());break;case "onEvent":b.eventName&&this.events[b.eventName]&&this.events[b.eventName].call(this,b.eventData);break;case "onInfo":this.editorInfo=b;void 0!==this.editorInfo.data&&delete this.editorInfo.data;
@@ -967,7 +994,11 @@ eval("Asc.EditorConnector.prototype.callMethodAsync = function(name, args) { var
             setReferenceSource: _setReferenceSource,
             openDocument: _openDocumentFromBinary,
             startFilling: _startFilling,
-            requestRoles: _requestRoles
+            requestRoles: _requestRoles,
+            setEditorMode: _setEditorMode,
+            getPrintFileUrl: _getPrintFileUrl,
+            print: _print,
+            forcesave: _forceSave
         }
     };
 

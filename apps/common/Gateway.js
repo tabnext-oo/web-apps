@@ -168,6 +168,22 @@ if (window.Common === undefined) {
 
             'requestRoles': function(data) {
                 $me.trigger('requestroles', data);
+            },
+            
+            'setEditorMode': function(data) {
+                $me.trigger('seteditormode', data);
+            },
+
+            'getPrintFileUrl': function(data) {
+                $me.trigger('getprintfileurl', data);
+            },
+
+            'print': function(data) {
+                $me.trigger('print', data);
+            },
+
+            'forcesave': function(data) {
+                $me.trigger('forcesave', data);
             }
         };
 
@@ -451,6 +467,13 @@ if (window.Common === undefined) {
 
             submitForm: function() {
                 _postMessage({event: 'onSubmit'});
+            },
+
+            sendPrintFileUrl: function(data) {
+                _postMessage({
+                    event: 'onPrintFileUrl',
+                    data: data
+                });
             },
 
             on: function(event, handler){
